@@ -1,43 +1,37 @@
-'''
-Created on Nov 2, 2014
-
-@author: ehenneken
-'''
-
-import simplejson as json
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
-from sqlalchemy.ext.declarative import DeclarativeMeta
+import json
+import simplejson
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, create_engine
+from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.dialects import postgresql
-from flask.ext.sqlalchemy import SQLAlchemy
 
-db = SQLAlchemy()
+try:
+    from sqlalchemy.orm import declarative_base
+    from sqlalchemy.orm.decl_api import DeclarativeMeta
+except ImportError:
+    from sqlalchemy.ext.declarative import declarative_base, DeclarativeMeta
+
+Base = declarative_base()
 
 
-class AlchemyEncoder(json.JSONEncoder):
+class AlchemyEncoder(simplejson.JSONEncoder):
 
     def default(self, obj):
         if isinstance(obj.__class__, DeclarativeMeta):
-            # an SQLAlchemy class
             fields = {}
             for field in [x for x in dir(obj)
                           if not x.startswith('_') and x != 'metadata']:
                 data = obj.__getattribute__(field)
                 try:
-                    # this will fail on non-encodable values, like other
-                    # classes
                     json.dumps(data)
                     fields[field] = data
                 except TypeError:
                     fields[field] = None
-            # a json-encodable dict
             return fields
+        return simplejson.JSONEncoder.default(self, obj)
 
-        return json.JSONEncoder.default(self, obj)
 
-
-class GraphicsModel(db.Model):
+class GraphicsModel(Base):
     __tablename__ = 'graphics'
-    __bind_key__ = 'graphics'
     id = Column(Integer, primary_key=True)
     bibcode = Column(String, nullable=False, index=True)
     doi = Column(String)
@@ -47,3 +41,14 @@ class GraphicsModel(db.Model):
     thumbnails = Column(postgresql.ARRAY(String), default=[])
     baseurl = Column(String)
     modtime = Column(DateTime)
+
+
+def get_session(database_url):
+    engine = create_engine(database_url)
+    Session = scoped_session(sessionmaker(bind=engine))
+    return Session()
+
+
+def create_all_tables(database_url):
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)

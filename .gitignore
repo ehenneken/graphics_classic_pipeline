@@ -46,6 +46,5 @@ adsabs.log
 logging.conf
 
 local_config.py
-run.py
 src
 tmp
