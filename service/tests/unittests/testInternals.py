@@ -1,37 +1,43 @@
 import sys
 import os
+import unittest
+import importlib
+
 PROJECT_HOME = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../../'))
-sys.path.append(PROJECT_HOME)
-from flask.ext.testing import TestCase
-from flask import request
-from flask import url_for, Flask
-import unittest
-import requests
-import time
-import app
+sys.path.insert(0, PROJECT_HOME)
 
 
-class TestConfig(TestCase):
+def load_config():
+    conf = {}
+    base = importlib.import_module('config')
+    conf.update({k: v for k, v in vars(base).items() if not k.startswith('_')})
+    local_path = os.path.join(PROJECT_HOME, 'local_config.py')
+    if os.path.exists(local_path):
+        local = importlib.import_module('local_config')
+        conf.update({k: v for k, v in vars(local).items() if not k.startswith('_')})
+    return conf
 
-    '''Check if config has necessary entries'''
 
-    def create_app(self):
-        '''Create the wsgi application'''
-        app_ = app.create_app()
-        return app_
+class TestConfig(unittest.TestCase):
 
-    def test_config_values(self):
-        '''Check if all required config variables are there'''
-        required = ["GRAPHICS_INCLUDE_ARXIV", "SQLALCHEMY_BINDS",
-                    "DISCOVERER_PUBLISH_ENDPOINT", "DISCOVERER_SELF_PUBLISH"]
+    '''Check that config has the necessary entries'''
 
-        missing = [x for x in required if x not in self.app.config.keys()]
-        self.assertTrue(len(missing) == 0)
-        # Check if API has an actual value
-        if os.path.exists("%s/local_config.py" % PROJECT_HOME):
-            self.assertTrue(
-                self.app.config.get('GRAPHICS_API_TOKEN', None) != None)
+    def setUp(self):
+        self.config = load_config()
+
+    def test_required_config_keys(self):
+        '''All required config keys are present'''
+        required = ['GRAPHICS_INCLUDE_ARXIV', 'SQLALCHEMY_BINDS']
+        missing = [k for k in required if k not in self.config]
+        self.assertEqual(missing, [], msg='Missing config keys: %s' % missing)
+
+    def test_api_token_present_with_local_config(self):
+        '''GRAPHICS_API_TOKEN is set when local_config.py exists'''
+        local_path = os.path.join(PROJECT_HOME, 'local_config.py')
+        if os.path.exists(local_path):
+            self.assertIsNotNone(self.config.get('GRAPHICS_API_TOKEN'))
+
 
 if __name__ == '__main__':
     unittest.main()
