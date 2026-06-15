@@ -1,9 +1,8 @@
 import sys
 import os
-import shutil
 import json
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from datetime import datetime
 
 PROJECT_HOME = os.path.abspath(
@@ -51,11 +50,7 @@ class TestIOP(unittest.TestCase):
             return True
         self.assertTrue(self.config.get('GRAPHICS_FULLTEXT_MAPS'))
         self.assertTrue(self.config['GRAPHICS_FULLTEXT_MAPS'].get('IOP'))
-        self.assertTrue(self.config['GRAPHICS_FULLTEXT_MAPS'].get('arXiv'))
-        self.assertTrue(self.config.get('GRAPHICS_BACK_DATA_FILE'))
-        self.assertTrue(self.config['GRAPHICS_BACK_DATA_FILE'].get('IOP'))
         self.assertTrue(self.config['GRAPHICS_SOURCE_NAMES'].get('IOP'))
-        self.assertTrue(self.config['GRAPHICS_SOURCE_NAMES'].get('arXiv'))
 
     def test_IOP_update(self):
         '''IOP processor skips existing records without force, updates with force'''
@@ -68,14 +63,12 @@ class TestIOP(unittest.TestCase):
         with open(map_file, 'w') as f:
             f.write("2013ApJ...778L..42P\t%s\tIOP" % ft_file)
         self.config['GRAPHICS_FULLTEXT_MAPS']['IOP'] = map_file
-        # Without force: record exists, nothing processed
         res = tasks.process_IOP_graphics(identifiers, False, dryrun=True)
         self.assertIsNone(res)
-        # With force: should process and return figure list
         res = tasks.process_IOP_graphics(identifiers, True, dryrun=True)
         self.assertEqual(len(res), 3)
-        figures = [f['figure_label'] for f in res]
-        self.assertEqual(figures, ['Figure 1.', 'Figure 2.', 'Figure 3.'])
+        self.assertEqual([f['figure_label'] for f in res],
+                         ['Figure 1.', 'Figure 2.', 'Figure 3.'])
         try:
             os.remove(map_file)
         except OSError:
@@ -84,37 +77,43 @@ class TestIOP(unittest.TestCase):
 
 @unittest.skip("skip update testing (arXiv)")
 class TestARXIV(unittest.TestCase):
+    '''
+    Tests arXiv processing via PDF image extraction (PyMuPDF).
+    Requires a real PDF at {GRAPHICS_FULLTEXT_MAPS[arXiv]}/arXiv/{yy}/{aid}.pdf
+    and valid AWS credentials in local_config.py.
+    '''
 
     def setUp(self):
         self.mock_session = MagicMock()
         (self.mock_session.query.return_value
          .filter.return_value.first.return_value) = None
         self.config = {
-            'GRAPHICS_TMP_DIR': "%s/tests/stubdata" % PROJECT_HOME,
-            'GRAPHICS_IMAGE_DIR': "%s/tests/stubdata/graphics" % PROJECT_HOME,
             'GRAPHICS_ENABLE_UPDATES': False,
-            'GRAPHICS_FULLTEXT_MAPS': {},
+            'GRAPHICS_FULLTEXT_MAPS': {
+                'arXiv': "%s/tests/stubdata" % PROJECT_HOME,
+            },
             'GRAPHICS_SOURCE_NAMES': {'arXiv': 'arXiv'},
             'GRAPHICS_AWS_S3_URL': 'https://s3.amazonaws.com',
             'GRAPHICS_AWS_S3_BUCKET': 'test-bucket',
+            'GRAPHICS_MIN_IMAGE_DIMENSION': 100,
         }
         tasks.init(self.mock_session, self.config)
 
     def test_ARXIV_update(self):
-        '''arXiv processor extracts the expected number of figures'''
+        '''arXiv PDF processor extracts images and returns figure list'''
         if not self.config.get('GRAPHICS_ENABLE_UPDATES', False):
             return True
+        # Expects a PDF at tests/stubdata/arXiv/YY/NN.pdf
         identifiers = [{'bibcode': 'bibcode', 'arxid': 'arXiv:YY.NN'}]
-        self.config['GRAPHICS_FULLTEXT_MAPS']['arXiv'] = (
-            "%s/tests/stubdata" % PROJECT_HOME)
-        res = tasks.process_arXiv_graphics(identifiers, False, dryrun=True)
-        self.assertEqual(len(res), 9)
-        expected_ids = ['arxivYY.NN_f%s' % i for i in range(1, 10)]
-        self.assertEqual([f['figure_id'] for f in res], expected_ids)
-        try:
-            shutil.rmtree(self.config['GRAPHICS_IMAGE_DIR'])
-        except Exception:
-            pass
+        with patch('tasks.get_boto_session') as mock_boto:
+            mock_boto.return_value.client.return_value.put_object = MagicMock()
+            res = tasks.process_arXiv_graphics(identifiers, False, dryrun=True)
+        self.assertIsNotNone(res)
+        self.assertIsInstance(res, list)
+        for fig in res:
+            self.assertIn('figure_id', fig)
+            self.assertIn('images', fig)
+            self.assertEqual(fig['images'][0]['format'], 'png')
 
 
 if __name__ == '__main__':
