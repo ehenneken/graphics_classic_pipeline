@@ -36,7 +36,7 @@ GRAPHICS_FULLTEXT_MAPS = {
     'EDP':'/path/to/EDP.map',
     'OUP':'/path/to/OUP.map',
     'IOP':'/path/to/IOP.map',
-    'arXiv':'/path/to/arXiv.map'
+    'arXiv':'/path/to/arXiv/pdfs'
 }
 # Location of local graphics files
 GRAPHICS_GRAPHICS_LOCATION = {}
@@ -53,14 +53,10 @@ GRAPHICS_SOURCE_NAMES = {
     'arXiv': 'arXiv',
     'AnnRev':'AnnRev',
 }
-# Work directory to store temporary data (e.g. for unpacking TAR files)
-GRAPHICS_TMP_DIR = ''
-# Base directory of where extracted images will be stored
-GRAPHICS_IMAGE_DIR = ''
+# Minimum image dimension (pixels) for arXiv PDF extraction
+GRAPHICS_MIN_IMAGE_DIMENSION = 100
 # Base URL for serving images
 GRAPHICS_BASE_URL = ''
-# Vertical size for thumbnails
-GRAPHICS_THMB_SIZE = '100'
 # How do we query Solr
 GRAPHICS_SOLR_PATH = 'https://api.adsabs.harvard.edu/v1/search/query'
 # This section configures this application to act as a client, for example
@@ -104,7 +100,3 @@ GRAPHICS_LOGGING = {
         },
     },
 }
-# Define the autodiscovery endpoint
-DISCOVERER_PUBLISH_ENDPOINT = '/resources'
-# Advertise its own route within DISCOVERER_PUBLISH_ENDPOINT
-DISCOVERER_SELF_PUBLISH = False

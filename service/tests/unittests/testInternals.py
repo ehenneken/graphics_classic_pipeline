@@ -5,14 +5,16 @@ import importlib
 
 PROJECT_HOME = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../../'))
+ROOT = os.path.abspath(os.path.join(PROJECT_HOME, '..'))
 sys.path.insert(0, PROJECT_HOME)
+sys.path.insert(0, ROOT)
 
 
 def load_config():
     conf = {}
     base = importlib.import_module('config')
     conf.update({k: v for k, v in vars(base).items() if not k.startswith('_')})
-    local_path = os.path.join(PROJECT_HOME, 'local_config.py')
+    local_path = os.path.join(ROOT, 'local_config.py')
     if os.path.exists(local_path):
         local = importlib.import_module('local_config')
         conf.update({k: v for k, v in vars(local).items() if not k.startswith('_')})
@@ -34,7 +36,7 @@ class TestConfig(unittest.TestCase):
 
     def test_api_token_present_with_local_config(self):
         '''GRAPHICS_API_TOKEN is set when local_config.py exists'''
-        local_path = os.path.join(PROJECT_HOME, 'local_config.py')
+        local_path = os.path.join(ROOT, 'local_config.py')
         if os.path.exists(local_path):
             self.assertIsNotNone(self.config.get('GRAPHICS_API_TOKEN'))
 

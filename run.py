@@ -9,8 +9,10 @@ import importlib
 from collections import defaultdict
 from datetime import datetime
 
-# Ensure the service directory is on the path regardless of invocation location
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add root (for config, local_config) and service/ (for all other modules)
+_root = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(_root, 'service'))
+sys.path.insert(0, _root)
 
 from models import GraphicsModel, AlchemyEncoder, get_session, create_all_tables
 import tasks
@@ -122,7 +124,6 @@ def cmd_updatedb(session, config, args):
     set2journal = config.get('GRAPHICS_PUBSETS', {})
     journal2set = {v: k for k in set2journal for v in set2journal[k]}
 
-    # Build arXiv category <-> ADS bibstem mappings
     categories = config.get('GRAPHICS_PUBSETS', {}).get('arXiv', [])
     bibstems = list(map(lambda a: re.sub(r"\W", ".", "%-5s" % a), categories))
     category2bibstem = {}
@@ -164,7 +165,7 @@ def cmd_updatedb(session, config, args):
                     ident = {}
             for pset in set2journal:
                 if [j for j in set2journal[pset] if j in identifier]:
-                    if pset == 'EDP' and ident.get('bibcode', '')[ 4:9] == 'ARA&A':
+                    if pset == 'EDP' and ident.get('bibcode', '')[4:9] == 'ARA&A':
                         continue
                     identifiers[pset].append(ident)
     else:
