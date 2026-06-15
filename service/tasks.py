@@ -2,7 +2,6 @@ import sys
 import os
 import re
 import glob
-import shutil
 import random
 import urllib.parse
 import base64
@@ -11,6 +10,7 @@ import time
 from operator import itemgetter
 from datetime import datetime
 
+import fitz  # PyMuPDF
 import simplejson
 import requests
 from bs4 import BeautifulSoup
@@ -18,9 +18,6 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from models import GraphicsModel, AlchemyEncoder
 from client import get_client
-import file_ops
-from invenio_tools import (extract_captions, prepare_image_data,
-                           extract_context, remove_dups)
 from aws_tools import get_boto_session
 
 # Module-level session and config initialised by init()
@@ -348,6 +345,22 @@ def manage_IOP_graphics(fulltext, bibcode, DOI, apath, source, id2thumb,
 # arXiv
 # ---------------------------------------------------------------------------
 
+def _arxiv_pdf_path(arx_id, ft_base):
+    """Derive the PDF path from an arXiv ID and the base directory."""
+    if '/' in arx_id:
+        cat = arx_id.split('/')[0]
+        year = arx_id.split('/')[1][:2]
+        yy = "19%s" % year if int(year) > 80 else "20%s" % year
+        aid = arx_id.split('/')[1]
+    elif ':' in arx_id:
+        cat = 'arXiv'
+        yy = arx_id.split(':')[1].split('.')[0]
+        aid = arx_id.split(':')[1].split('.')[1]
+    else:
+        return None, None, None, None
+    return "%s/%s/%s/%s.pdf" % (ft_base, cat, yy, aid), cat, yy, aid
+
+
 def process_arXiv_graphics(identifiers, force, dryrun=False):
     updates = []
     new = []
@@ -360,50 +373,30 @@ def process_arXiv_graphics(identifiers, force, dryrun=False):
         elif not resp:
             new.append(identifier)
 
-    yy = '9999'
-    aid = '9999'
-    cat = 'arXiv'
     res = None
 
     for entry in updates:
-        paper = entry['arxid']
-        bibcode = entry['bibcode']
-        if '/' in paper:
-            cat = paper.split('/')[0]
-            year = paper.split('/')[1][:2]
-            yy = "19%s" % year if int(year) > 80 else "20%s" % year
-            aid = paper.split('/')[1]
-        elif ':' in paper:
-            cat = 'arXiv'
-            yy = paper.split(':')[1].split('.')[0]
-            aid = paper.split(':')[1].split('.')[1]
-        ft_file = "%s/%s/%s/%s.tar.gz" % (ft_base, cat, yy, aid)
-        if not os.path.exists(ft_file):
+        pdf_file, cat, yy, aid = _arxiv_pdf_path(entry['arxid'], ft_base)
+        if not pdf_file or not os.path.exists(pdf_file):
+            sys.stderr.write('PDF not found for %s: %s\n'
+                             % (entry['bibcode'], pdf_file))
             continue
-        res = manage_arXiv_graphics(ft_file, bibcode, paper, cat,
-                                    dryrun=dryrun, update=True)
+        res = manage_arXiv_graphics(pdf_file, entry['bibcode'], entry['arxid'],
+                                    cat, dryrun=dryrun, update=True)
 
     for entry in new:
-        paper = entry['arxid']
-        bibcode = entry['bibcode']
-        if '/' in paper:
-            cat = paper.split('/')[0]
-            year = paper.split('/')[1][:2]
-            yy = "19%s" % year if int(year) > 80 else "20%s" % year
-            aid = paper.split('/')[1]
-        elif ':' in paper:
-            cat = 'arXiv'
-            yy = paper.split(':')[1].split('.')[0]
-            aid = paper.split(':')[1].split('.')[1]
-        ft_file = "%s/%s/%s/%s.tar.gz" % (ft_base, cat, yy, aid)
-        if not os.path.exists(ft_file):
+        pdf_file, cat, yy, aid = _arxiv_pdf_path(entry['arxid'], ft_base)
+        if not pdf_file or not os.path.exists(pdf_file):
+            sys.stderr.write('PDF not found for %s: %s\n'
+                             % (entry['bibcode'], pdf_file))
             continue
-        res = manage_arXiv_graphics(ft_file, bibcode, paper, cat, dryrun=dryrun)
+        res = manage_arXiv_graphics(pdf_file, entry['bibcode'], entry['arxid'],
+                                    cat, dryrun=dryrun)
 
     return res
 
 
-def manage_arXiv_graphics(ft_file, bibcode, arx_id, category,
+def manage_arXiv_graphics(pdf_path, bibcode, arx_id, category,
                            update=False, dryrun=False):
     if update:
         graphic = session.query(GraphicsModel).filter(
@@ -414,104 +407,89 @@ def manage_arXiv_graphics(ft_file, bibcode, arx_id, category,
     else:
         graphic = None
 
-    tex_files, img_files, xdir = file_ops.untar(ft_file, bibcode, config)
-    if len(img_files) == 0:
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as e:
+        sys.stderr.write('Cannot open PDF for %s: %s\n' % (bibcode, e))
         return None
 
-    figures = []
-    try:
-        img_files, converted_images = file_ops.convert_images(img_files)
-    except Exception as exc:
-        sys.stderr.write('Image conversion failed for %s. Skipping.\n' % bibcode)
-        try:
-            shutil.rmtree(xdir)
-        except Exception:
-            pass
-        return None
-
-    extracted_image_data = []
-    for tex_file in tex_files:
-        partly_extracted_image_data = extract_captions(tex_file, xdir, img_files)
-        if partly_extracted_image_data:
-            cleaned_image_data = prepare_image_data(
-                partly_extracted_image_data, tex_file, converted_images)
-            extracted_image_data.extend(
-                extract_context(tex_file, cleaned_image_data))
-    extracted_image_data = remove_dups(extracted_image_data)
-
-    try:
-        skipped_images = [i for i in converted_images
-                          if i not in [e[0] for e in extracted_image_data]]
-    except Exception:
-        skipped_images = converted_images
-    if skipped_images:
-        extracted_image_data += [(im, '', '', []) for im in skipped_images]
-
-    fid = 1
-    source2target = {}
-    source2AWS = {}
-    for item in extracted_image_data:
-        if not os.path.exists(item[0]) or not item[0].strip():
-            continue
-        fig_data = {}
-        if arx_id.find('arXiv') > -1:
-            figure_id = 'arxiv%s_f%s' % (arx_id.replace('arXiv:', ''), fid)
-            subdir = arx_id.replace('arXiv:', '').split('.')[0]
-            eprdir = arx_id.replace('arXiv:', '').split('.')[1]
-        else:
-            figure_id = '%s_f%s' % (arx_id.replace('/', '_'), fid)
-            subdir = arx_id.split('/')[1][:4]
-            eprdir = arx_id.split('/')[1][4:]
-        source2target[item[0]] = "%s/%s/%s/%s/%s.png" % (
-            config.get('GRAPHICS_IMAGE_DIR'), category, subdir, eprdir, figure_id)
-        source2AWS[item[0]] = "seri/arXiv/%s/%s/%s/%s.png" % (
-            category, subdir, eprdir, figure_id)
-        fig_data['figure_id'] = figure_id
-        try:
-            fig_data['figure_label'] = item[2].encode('ascii', 'ignore').decode('ascii')
-        except Exception:
-            fig_data['figure_label'] = ''
-        if not fig_data['figure_label']:
-            fig_data['figure_label'] = 'figure %s' % fid
-        try:
-            fig_data['figure_caption'] = item[1].encode('ascii', 'ignore').decode('ascii')
-        except Exception:
-            fig_data['figure_caption'] = ''
-        image_url = "http://arxiv.org/abs/%s" % arx_id.replace('arXiv:', '')
-        thumb_url = "%s/%s/%s" % (
-            config.get('GRAPHICS_AWS_S3_URL'),
-            config.get('GRAPHICS_AWS_S3_BUCKET'),
-            source2AWS[item[0]])
-        fig_data['images'] = [{
-            'image_id': fid,
-            'format': 'png',
-            'thumbnail': thumb_url,
-            'highres': image_url,
-        }]
-        figures.append(fig_data)
-        fid += 1
+    if arx_id.find('arXiv') > -1:
+        subdir = arx_id.replace('arXiv:', '').split('.')[0]
+        eprdir = arx_id.replace('arXiv:', '').split('.')[1]
+    else:
+        subdir = arx_id.split('/')[1][:4]
+        eprdir = arx_id.split('/')[1][4:]
 
     boto_client = get_boto_session(config).client('s3')
-    mimetype = 'image/png'
     bucket = config.get('GRAPHICS_AWS_S3_BUCKET')
-    for source, target in source2target.items():
-        target_dir, fname = os.path.split(target)
-        os.makedirs(target_dir, exist_ok=True)
-        shutil.copy(source, target)
-        key = source2AWS[source]
-        try:
-            with open(source, 'rb') as data:
-                boto_client.put_object(Key=key, Bucket=bucket, Body=data,
-                                       ACL='public-read', ContentType=mimetype)
-        except Exception as e:
-            sys.stderr.write('Error uploading %s: %s\n' % (source, e))
+    min_dim = config.get('GRAPHICS_MIN_IMAGE_DIMENSION', 100)
+    image_url = "http://arxiv.org/abs/%s" % arx_id.replace('arXiv:', '')
 
-    TMP_DIR = config.get('GRAPHICS_TMP_DIR')
-    extract_dir = "%s/%s" % (TMP_DIR, bibcode)
-    try:
-        shutil.rmtree(extract_dir)
-    except Exception:
-        pass
+    figures = []
+    fid = 1
+    seen_xrefs = set()
+
+    for page_num in range(len(doc)):
+        for img in doc[page_num].get_images():
+            xref = img[0]
+            if xref in seen_xrefs:
+                continue
+            seen_xrefs.add(xref)
+
+            try:
+                pix = fitz.Pixmap(doc, xref)
+            except Exception as e:
+                sys.stderr.write('Cannot extract image xref %s from %s: %s\n'
+                                 % (xref, bibcode, e))
+                continue
+
+            if pix.width < min_dim or pix.height < min_dim:
+                pix = None
+                continue
+
+            # Convert CMYK and other non-RGB colorspaces
+            if pix.n - pix.alpha >= 4:
+                pix = fitz.Pixmap(fitz.csRGB, pix)
+
+            if arx_id.find('arXiv') > -1:
+                figure_id = 'arxiv%s_f%s' % (arx_id.replace('arXiv:', ''), fid)
+            else:
+                figure_id = '%s_f%s' % (arx_id.replace('/', '_'), fid)
+
+            aws_key = "seri/arXiv/%s/%s/%s/%s.png" % (
+                category, subdir, eprdir, figure_id)
+            thumb_url = "%s/%s/%s" % (
+                config.get('GRAPHICS_AWS_S3_URL'), bucket, aws_key)
+
+            fig_data = {
+                'figure_id': figure_id,
+                'figure_label': 'figure %s' % fid,
+                'figure_caption': '',
+                'images': [{
+                    'image_id': fid,
+                    'format': 'png',
+                    'thumbnail': thumb_url,
+                    'highres': image_url,
+                }],
+            }
+            figures.append(fig_data)
+
+            if not dryrun:
+                try:
+                    boto_client.put_object(
+                        Key=aws_key,
+                        Bucket=bucket,
+                        Body=pix.tobytes('png'),
+                        ACL='public-read',
+                        ContentType='image/png',
+                    )
+                except Exception as e:
+                    sys.stderr.write('Error uploading %s: %s\n' % (aws_key, e))
+
+            pix = None
+            fid += 1
+
+    doc.close()
 
     graph_src = config.get('GRAPHICS_SOURCE_NAMES', {}).get('arXiv')
     if figures and not dryrun:
