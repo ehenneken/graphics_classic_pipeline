@@ -17,7 +17,6 @@ from bs4 import BeautifulSoup
 from sqlalchemy.orm.exc import NoResultFound
 
 from models import GraphicsModel, AlchemyEncoder
-from client import get_client
 from aws_tools import get_boto_session
 
 # Module-level session and config initialised by init()
@@ -157,9 +156,11 @@ def get_identifiers(bibstem, year, source):
         fl = 'bibcode, identifier, doi'
         idtype = 'identifier'
     solr_args = {'wt': 'json', 'q': q, 'fl': fl, 'rows': 100000}
-    response = get_client(config).get(
+    headers = {'Authorization': 'Bearer %s' % config.get('GRAPHICS_API_TOKEN', '')}
+    response = requests.get(
         config.get('GRAPHICS_SOLR_PATH'),
-        params=solr_args)
+        params=solr_args,
+        headers=headers)
     if response.status_code != 200:
         return []
     resp = response.json()
