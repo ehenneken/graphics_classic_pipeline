@@ -6,7 +6,6 @@ import random
 import urllib.parse
 import base64
 import json
-import time
 from operator import itemgetter
 from datetime import datetime
 
@@ -30,9 +29,6 @@ def init(db_session, app_config):
     config = app_config
 
 
-AAS = ['ApJS.', 'ApJ..', 'AJ...', 'RNAAS', 'PSJ..']
-IOPscience = ['PASP.', 'CQGra']
-
 graph_link = '<a href="graphics" border=0><img src="%s"></a>'
 ADSASS_img = '<img src="%s">'
 ADSASS_thmb_img = '<img src="%s" width="100px">'
@@ -43,7 +39,7 @@ ADS_image_url = (ADS_base_url +
 
 
 # ---------------------------------------------------------------------------
-# Query path (was graphics.py)
+# Query
 # ---------------------------------------------------------------------------
 
 def get_graphics(bibcode):
@@ -135,7 +131,7 @@ def get_graphics(bibcode):
 
 
 # ---------------------------------------------------------------------------
-# Identifier lookup (was utils.py)
+# Identifier lookup
 # ---------------------------------------------------------------------------
 
 def get_identifiers(bibstem, year, source):
