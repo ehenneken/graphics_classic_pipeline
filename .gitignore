@@ -48,3 +48,4 @@ logging.conf
 local_config.py
 src
 tmp
+.idea

@@ -6,7 +6,6 @@ import random
 import urllib.parse
 import base64
 import json
-import time
 from operator import itemgetter
 from datetime import datetime
 
@@ -17,7 +16,6 @@ from bs4 import BeautifulSoup
 from sqlalchemy.orm.exc import NoResultFound
 
 from models import GraphicsModel, AlchemyEncoder
-from client import get_client
 from aws_tools import get_boto_session
 
 # Module-level session and config initialised by init()
@@ -31,9 +29,6 @@ def init(db_session, app_config):
     config = app_config
 
 
-AAS = ['ApJS.', 'ApJ..', 'AJ...', 'RNAAS', 'PSJ..']
-IOPscience = ['PASP.', 'CQGra']
-
 graph_link = '<a href="graphics" border=0><img src="%s"></a>'
 ADSASS_img = '<img src="%s">'
 ADSASS_thmb_img = '<img src="%s" width="100px">'
@@ -44,7 +39,7 @@ ADS_image_url = (ADS_base_url +
 
 
 # ---------------------------------------------------------------------------
-# Query path (was graphics.py)
+# Query
 # ---------------------------------------------------------------------------
 
 def get_graphics(bibcode):
@@ -136,7 +131,7 @@ def get_graphics(bibcode):
 
 
 # ---------------------------------------------------------------------------
-# Identifier lookup (was utils.py)
+# Identifier lookup
 # ---------------------------------------------------------------------------
 
 def get_identifiers(bibstem, year, source):
@@ -157,9 +152,11 @@ def get_identifiers(bibstem, year, source):
         fl = 'bibcode, identifier, doi'
         idtype = 'identifier'
     solr_args = {'wt': 'json', 'q': q, 'fl': fl, 'rows': 100000}
-    response = get_client(config).get(
+    headers = {'Authorization': 'Bearer %s' % config.get('GRAPHICS_API_TOKEN', '')}
+    response = requests.get(
         config.get('GRAPHICS_SOLR_PATH'),
-        params=solr_args)
+        params=solr_args,
+        headers=headers)
     if response.status_code != 200:
         return []
     resp = response.json()
