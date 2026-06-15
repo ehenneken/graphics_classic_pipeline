@@ -11,7 +11,7 @@ from datetime import datetime
 
 # Add root (for config, local_config) and service/ (for all other modules)
 _root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(_root, 'service'))
+sys.path.insert(0, os.path.join(_root, 'graphics'))
 sys.path.insert(0, _root)
 
 from models import GraphicsModel, AlchemyEncoder, get_session, create_all_tables
