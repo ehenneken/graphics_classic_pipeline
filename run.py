@@ -138,6 +138,7 @@ def cmd_updatedb(session, config, args):
     identifiers = defaultdict(list)
 
     if args.identifier:
+        is_preprint = True in [args.identifier.find(a) > -1 for a in bibstems]
         sys.stderr.write('Processing %s\n' % args.identifier)
         args.force = True
         for identifier in args.identifier.split(','):
@@ -145,6 +146,9 @@ def cmd_updatedb(session, config, args):
                 bibstem = identifier[4:13]
                 year = identifier[:4]
                 source = ""
+                if is_preprint:
+                    source = "arXiv"
+                    bibstem = "arXiv"
                 res = tasks.get_identifiers(bibstem, year, source)
                 try:
                     ident = [r for r in res if r['bibcode'] == identifier][0]
