@@ -489,11 +489,14 @@ def manage_arXiv_graphics(pdf_path, bibcode, arx_id, category,
     doc.close()
 
     graph_src = config.get('GRAPHICS_SOURCE_NAMES', {}).get('arXiv')
+    thumbnails = [(f['images'][0]['thumbnail'], f['images'][0]['highres'])
+                  for f in figures if f.get('images')]
     if figures and not dryrun:
         if update:
             sys.stderr.write('Updating %s\n' % bibcode)
             graphic.source = graph_src
             graphic.figures = figures
+            graphic.thumbnails = thumbnails
             graphic.modtime = datetime.now()
         else:
             sys.stderr.write('Creating new record for %s\n' % bibcode)
@@ -504,6 +507,7 @@ def manage_arXiv_graphics(pdf_path, bibcode, arx_id, category,
                     source=graph_src,
                     eprint=True,
                     figures=figures,
+                    thumbnails=thumbnails,
                     modtime=datetime.now()
                 )
                 session.add(graphic)
@@ -594,12 +598,15 @@ def manage_Elsevier_graphics(record, update=False, dryrun=False):
         figures.append(fig_data)
     figures = sorted(figures, key=itemgetter('figure_number'))
 
+    thumbnails = [(f['images'][0]['thumbnail'], f['images'][0]['highres'])
+                  for f in figures if f.get('images')]
     if figures and not dryrun:
         graph_src = config.get('GRAPHICS_SOURCE_NAMES', {}).get('Elsevier')
         if update:
             sys.stderr.write('Updating %s\n' % record['bibcode'])
             graphic.source = graph_src
             graphic.figures = figures
+            graphic.thumbnails = thumbnails
             graphic.modtime = datetime.now()
         else:
             sys.stderr.write('Creating new record for %s\n' % record['bibcode'])
@@ -609,6 +616,7 @@ def manage_Elsevier_graphics(record, update=False, dryrun=False):
                 source=graph_src,
                 eprint=False,
                 figures=figures,
+                thumbnails=thumbnails,
                 modtime=datetime.now()
             )
             session.add(graphic)
@@ -726,12 +734,15 @@ def manage_EDP_graphics(record, ft_file, update=False, dryrun=False):
             continue
 
     figures = sorted(figures, key=itemgetter('figure_number'))
+    thumbnails = [(f['images'][0]['thumbnail'], f['images'][0]['highres'])
+                  for f in figures if f.get('images')]
     if figures and not dryrun:
         graph_src = config.get('GRAPHICS_SOURCE_NAMES', {}).get('EDP')
         if update:
             sys.stderr.write('Updating %s\n' % record['bibcode'])
             graphic.source = graph_src
             graphic.figures = figures
+            graphic.thumbnails = thumbnails
             graphic.modtime = datetime.now()
         else:
             sys.stderr.write('Creating new record for %s\n' % record['bibcode'])
@@ -741,6 +752,7 @@ def manage_EDP_graphics(record, ft_file, update=False, dryrun=False):
                 source=graph_src,
                 eprint=False,
                 figures=figures,
+                thumbnails=thumbnails,
                 modtime=datetime.now()
             )
             session.add(graphic)
@@ -833,12 +845,15 @@ def manage_OUP_graphics(record, update=False, dryrun=False):
             continue
 
     figures = sorted(figures, key=itemgetter('figure_number'))
+    thumbnails = [(f['images'][0]['thumbnail'], f['images'][0]['highres'])
+                  for f in figures if f.get('images')]
     if figures and not dryrun:
         graph_src = config.get('GRAPHICS_SOURCE_NAMES', {}).get('OUP')
         if update:
             sys.stderr.write('Updating %s\n' % record['bibcode'])
             graphic.source = graph_src
             graphic.figures = figures
+            graphic.thumbnails = thumbnails
             graphic.modtime = datetime.now()
         else:
             sys.stderr.write('Creating new record for %s\n' % record['bibcode'])
@@ -848,6 +863,7 @@ def manage_OUP_graphics(record, update=False, dryrun=False):
                 source=graph_src,
                 eprint=False,
                 figures=figures,
+                thumbnails=thumbnails,
                 modtime=datetime.now()
             )
             session.add(graphic)
@@ -937,12 +953,15 @@ def manage_APS_graphics(record, num_figs, update=False, dryrun=False):
         figures.append(fig_data)
     figures = sorted(figures, key=itemgetter('figure_number'))
 
+    thumbnails = [(f['images'][0]['thumbnail'], f['images'][0]['highres'])
+                  for f in figures if f.get('images')]
     if figures and not dryrun:
         graph_src = config.get('GRAPHICS_SOURCE_NAMES', {}).get('APS')
         if update:
             sys.stderr.write('Updating %s\n' % record['bibcode'])
             graphic.source = graph_src
             graphic.figures = figures
+            graphic.thumbnails = thumbnails
             graphic.modtime = datetime.now()
         else:
             sys.stderr.write('Creating new record for %s\n' % record['bibcode'])
@@ -952,6 +971,7 @@ def manage_APS_graphics(record, num_figs, update=False, dryrun=False):
                 source=graph_src,
                 eprint=False,
                 figures=figures,
+                thumbnails=thumbnails,
                 modtime=datetime.now()
             )
             session.add(graphic)
@@ -1030,12 +1050,15 @@ def manage_AnnRev_graphics(record, update=False, dryrun=False):
         figures.append(fig_data)
 
     figures = sorted(figures, key=itemgetter('figure_number'))
+    thumbnails = [(f['images'][0]['thumbnail'], f['images'][0]['highres'])
+                  for f in figures if f.get('images')]
     if figures and not dryrun:
         graph_src = config.get('GRAPHICS_SOURCE_NAMES', {}).get('AnnRev')
         if update:
             sys.stderr.write('Updating %s\n' % record['bibcode'])
             graphic.source = graph_src
             graphic.figures = figures
+            graphic.thumbnails = thumbnails
             graphic.modtime = datetime.now()
         else:
             sys.stderr.write('Creating new record for %s\n' % record['bibcode'])
@@ -1045,6 +1068,7 @@ def manage_AnnRev_graphics(record, update=False, dryrun=False):
                 source=graph_src,
                 eprint=False,
                 figures=figures,
+                thumbnails=thumbnails,
                 modtime=datetime.now()
             )
             session.add(graphic)
