@@ -1,5 +1,8 @@
 GRAPHICS_INCLUDE_ARXIV = True
 SQLALCHEMY_BINDS = {}
+# Source and target directories for MNRAS/MNRASL image retrieval
+GRAPHICS_MNRAS_SOURCE = '/proj/ads/abstracts/data'
+GRAPHICS_MNRAS_TARGET = '/proj/ads/articles/sources/MNRAS/Images'
 # Define sets for which to obtain graphics data for graphics database
 # The key defines the set and the values are journals (or categories, in the
 # case of arXiv)
