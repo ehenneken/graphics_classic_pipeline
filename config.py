@@ -1,9 +1,5 @@
-GRAPHICS_SECRET_KEY = 'this should be changed'
 GRAPHICS_INCLUDE_ARXIV = True
 SQLALCHEMY_BINDS = {}
-# Proper handling of database connections
-SQLALCHEMY_COMMIT_ON_TEARDOWN = True
-GRAPHICS_ENABLE_UPDATES = False
 # Define sets for which to obtain graphics data for graphics database
 # The key defines the set and the values are journals (or categories, in the
 # case of arXiv)
@@ -55,8 +51,6 @@ GRAPHICS_SOURCE_NAMES = {
 }
 # Minimum image dimension (pixels) for arXiv PDF extraction
 GRAPHICS_MIN_IMAGE_DIMENSION = 100
-# Base URL for serving images
-GRAPHICS_BASE_URL = ''
 # How do we query Solr
 GRAPHICS_SOLR_PATH = 'https://api.adsabs.harvard.edu/v1/search/query'
 # This section configures this application to act as a client, for example

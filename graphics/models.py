@@ -47,8 +47,3 @@ def get_session(database_url):
     engine = create_engine(database_url)
     Session = scoped_session(sessionmaker(bind=engine))
     return Session()
-
-
-def create_all_tables(database_url):
-    engine = create_engine(database_url)
-    Base.metadata.create_all(engine)
