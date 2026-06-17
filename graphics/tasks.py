@@ -10,12 +10,11 @@ from operator import itemgetter
 from datetime import datetime
 
 import fitz  # PyMuPDF
-import simplejson
 import requests
 from bs4 import BeautifulSoup
 from sqlalchemy.orm.exc import NoResultFound
 
-from models import GraphicsModel, AlchemyEncoder
+from models import GraphicsModel
 from aws_tools import get_boto_session
 
 # Module-level session and config initialised by init()
@@ -46,7 +45,7 @@ def get_graphics(bibcode):
     try:
         resp = session.query(GraphicsModel).filter(
             GraphicsModel.bibcode == bibcode).one()
-        results = simplejson.loads(simplejson.dumps(resp, cls=AlchemyEncoder))
+        results = resp.to_dict()
         results['query'] = 'OK'
         session.commit()
     except NoResultFound:

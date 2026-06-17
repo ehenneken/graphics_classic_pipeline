@@ -14,7 +14,7 @@ _root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_root, 'graphics'))
 sys.path.insert(0, _root)
 
-from models import GraphicsModel, AlchemyEncoder, get_session
+from models import GraphicsModel, get_session
 import tasks
 
 
@@ -64,7 +64,7 @@ def cmd_backupdb(session, config, args):
         if os.path.exists(ofile):
             continue
         with open(ofile, 'w') as f:
-            json.dump(rec, f, cls=AlchemyEncoder, indent=4)
+            json.dump(rec.to_dict(), f, indent=4)
 
 
 def cmd_updatedb(session, config, args):
