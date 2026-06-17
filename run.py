@@ -157,6 +157,56 @@ def cmd_updatedb(session, config, args):
     sys.stderr.write('Processed %s records in %.1f seconds\n' % (rec_num, duration))
 
 
+def cmd_getdata(session, config, args):
+    import shutil
+    journal = args.journal
+    basedir = os.path.join(config.get('GRAPHICS_MNRAS_SOURCE', ''), journal)
+    target = config.get('GRAPHICS_MNRAS_TARGET', '')
+
+    re_vol = re.compile(r'''^(\d{3})\.(\d)$''')
+    re_img = re.compile(r'''^s[tl][a-z]+\d+fig[a-z]?\d+\.jpeg$''')
+
+    voldirs = [d for d in os.listdir(basedir) if re_vol.search(d)]
+    for voldir in voldirs:
+        voln, iss = voldir.split('.')
+        vdir = "%s/%s" % (basedir, voldir)
+        if not os.path.isdir(vdir):
+            continue
+        vdir_cont = ["%s/%s" % (vdir, e) for e in os.listdir(vdir)
+                     if os.path.isdir("%s/%s" % (vdir, e))]
+        number_dirs = [d for d in vdir_cont if os.path.basename(d).isdigit()]
+        if len(number_dirs) == 0:
+            try:
+                image_dir = [d for d in vdir_cont
+                             if os.path.basename(d) == 'ImageFiles'][0]
+                imgfiles = ["%s/%s" % (image_dir, i)
+                            for i in os.listdir(image_dir) if re_img.search(i)]
+            except Exception:
+                imgfiles = []
+        else:
+            imgfiles = []
+            for ndir in number_dirs:
+                image_dir = "%s/ImageFiles" % ndir
+                if not os.path.isdir(image_dir):
+                    continue
+                imgfiles += ["%s/%s" % (image_dir, i)
+                             for i in os.listdir(image_dir) if re_img.search(i)]
+
+        tvdir = "%s/%s" % (target, voln)
+        os.makedirs(tvdir, exist_ok=True)
+
+        for ifile in imgfiles:
+            fname = os.path.basename(ifile)
+            artid = re.sub('fig.*', '', fname)
+            artdir = "%s/%s" % (tvdir, artid)
+            os.makedirs(artdir, exist_ok=True)
+            tfile = "%s/%s" % (artdir, fname)
+            if os.path.exists(tfile):
+                continue
+            sys.stderr.write('Creating file: %s\n' % tfile)
+            shutil.copy(ifile, tfile)
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -182,12 +232,21 @@ def main():
     p = subparsers.add_parser('backupdb', help='Backup database entries to JSON')
     p.add_argument('--set', '-s', required=True)
 
+    p = subparsers.add_parser('getdata',
+                              help='Retrieve MNRAS/MNRASL images from source')
+    p.add_argument('journal', choices=['MNRAS', 'MNRASL'])
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
         sys.exit(1)
 
     config = load_config()
+
+    if args.command == 'getdata':
+        cmd_getdata(None, config, args)
+        return
+
     database_url = config.get('SQLALCHEMY_BINDS', {}).get('graphics')
     if not database_url:
         sys.exit('SQLALCHEMY_BINDS.graphics is not set in config.\n')
@@ -199,6 +258,7 @@ def main():
         'updatedb': cmd_updatedb,
         'checkdb': cmd_checkdb,
         'backupdb': cmd_backupdb,
+        'getdata': cmd_getdata,
     }
     commands[args.command](session, config, args)
 
