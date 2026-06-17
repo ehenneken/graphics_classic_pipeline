@@ -1,33 +1,13 @@
-import json
-import simplejson
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.dialects import postgresql
 
 try:
     from sqlalchemy.orm import declarative_base
-    from sqlalchemy.orm.decl_api import DeclarativeMeta
 except ImportError:
-    from sqlalchemy.ext.declarative import declarative_base, DeclarativeMeta
+    from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
-
-
-class AlchemyEncoder(simplejson.JSONEncoder):
-
-    def default(self, obj):
-        if isinstance(obj.__class__, DeclarativeMeta):
-            fields = {}
-            for field in [x for x in dir(obj)
-                          if not x.startswith('_') and x != 'metadata']:
-                data = obj.__getattribute__(field)
-                try:
-                    json.dumps(data)
-                    fields[field] = data
-                except TypeError:
-                    fields[field] = None
-            return fields
-        return simplejson.JSONEncoder.default(self, obj)
 
 
 class GraphicsModel(Base):
@@ -41,6 +21,19 @@ class GraphicsModel(Base):
     thumbnails = Column(postgresql.ARRAY(String), default=[])
     baseurl = Column(String)
     modtime = Column(DateTime)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'bibcode': self.bibcode,
+            'doi': self.doi,
+            'source': self.source,
+            'eprint': self.eprint,
+            'figures': self.figures,
+            'thumbnails': self.thumbnails,
+            'baseurl': self.baseurl,
+            'modtime': self.modtime.isoformat() if self.modtime else None,
+        }
 
 
 def get_session(database_url):

@@ -124,9 +124,10 @@ class TestJSONError(unittest.TestCase):
          .filter.return_value.one.return_value) = 'not-a-model'
 
     def test_query(self):
-        '''Malformed DB return value raises an exception'''
-        with self.assertRaises(Exception):
-            tasks.get_graphics('9999BBBBBVVVVQPPPPI')
+        '''Non-model DB return value results in a failed query response'''
+        results = tasks.get_graphics('9999BBBBBVVVVQPPPPI')
+        self.assertEqual(results['query'], 'failed')
+        self.assertIn('error', results)
 
 
 class TestNoDataReturned(unittest.TestCase):
