@@ -14,7 +14,7 @@ _root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_root, 'graphics'))
 sys.path.insert(0, _root)
 
-from models import GraphicsModel, AlchemyEncoder, get_session, create_all_tables
+from models import GraphicsModel, AlchemyEncoder, get_session
 import tasks
 
 
@@ -34,12 +34,6 @@ def load_config():
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
-
-def cmd_createdb(session, config, args):
-    database_url = config.get('SQLALCHEMY_BINDS', {}).get('graphics')
-    create_all_tables(database_url)
-    sys.stderr.write('Database tables created.\n')
-
 
 def cmd_checkdb(session, config, args):
     if args.identifier:
@@ -71,53 +65,6 @@ def cmd_backupdb(session, config, args):
             continue
         with open(ofile, 'w') as f:
             json.dump(rec, f, cls=AlchemyEncoder, indent=4)
-
-
-def cmd_migratedb(session, config, args):
-    if args.identifier:
-        record = session.query(GraphicsModel).filter(
-            GraphicsModel.bibcode == args.identifier).first()
-        if not record:
-            sys.exit('No record found for %s\n' % args.identifier)
-        thumbnails = []
-        for f in record.figures or []:
-            try:
-                thm = f['images'][0]['thumbnail']
-                hrs = f['images'][0]['highres']
-                thumbnails.append((thm, hrs))
-            except Exception:
-                pass
-        record.thumbnails = thumbnails
-        session.commit()
-    elif args.set:
-        source = args.set
-        query = session.query(GraphicsModel).filter(GraphicsModel.source == source)
-        processed = []
-        for record in query.all():
-            bibcode = record.bibcode
-            try:
-                nthmbs = len(record.thumbnails)
-            except Exception:
-                nthmbs = 0
-            if nthmbs > 0:
-                sys.stderr.write('Already processed. Skipping %s\n' % bibcode)
-                continue
-            print("processing: %s" % bibcode)
-            if bibcode in processed:
-                continue
-            thumbnails = []
-            for f in record.figures or []:
-                try:
-                    thm = f['images'][0]['thumbnail']
-                    hrs = f['images'][0]['highres']
-                    thumbnails.append((thm, hrs))
-                except Exception:
-                    pass
-            processed.append(bibcode)
-            record.thumbnails = thumbnails
-            session.commit()
-    else:
-        sys.exit('Provide --identifier or --set\n')
 
 
 def cmd_updatedb(session, config, args):
@@ -219,8 +166,6 @@ def main():
         description='Graphics pipeline management')
     subparsers = parser.add_subparsers(dest='command')
 
-    subparsers.add_parser('createdb', help='Create database tables')
-
     p = subparsers.add_parser('updatedb', help='Update the graphics database')
     p.add_argument('--force', '-f', action='store_true', default=False)
     p.add_argument('--identifier', '-i',
@@ -234,10 +179,6 @@ def main():
     p.add_argument('--identifier', '-i')
     p.add_argument('--set', '-s')
 
-    p = subparsers.add_parser('migratedb', help='Migrate thumbnail data')
-    p.add_argument('--identifier', '-i')
-    p.add_argument('--set', '-s')
-
     p = subparsers.add_parser('backupdb', help='Backup database entries to JSON')
     p.add_argument('--set', '-s', required=True)
 
@@ -248,17 +189,15 @@ def main():
 
     config = load_config()
     database_url = config.get('SQLALCHEMY_BINDS', {}).get('graphics')
-    if not database_url and args.command != 'createdb':
+    if not database_url:
         sys.exit('SQLALCHEMY_BINDS.graphics is not set in config.\n')
 
-    session = get_session(database_url) if database_url else None
+    session = get_session(database_url)
     tasks.init(session, config)
 
     commands = {
-        'createdb': cmd_createdb,
         'updatedb': cmd_updatedb,
         'checkdb': cmd_checkdb,
-        'migratedb': cmd_migratedb,
         'backupdb': cmd_backupdb,
     }
     commands[args.command](session, config, args)

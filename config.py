@@ -1,6 +1,5 @@
 GRAPHICS_INCLUDE_ARXIV = True
 SQLALCHEMY_BINDS = {}
-GRAPHICS_ENABLE_UPDATES = False
 # Define sets for which to obtain graphics data for graphics database
 # The key defines the set and the values are journals (or categories, in the
 # case of arXiv)
