@@ -29,7 +29,6 @@ def init(db_session, app_config):
 
 
 graph_link = '<a href="graphics" border=0><img src="%s"></a>'
-ADSASS_img = '<img src="%s">'
 ADSASS_thmb_img = '<img src="%s" width="100px">'
 ADSASS_thmb_link = '<a href="graphics" border=0>%s</a>'
 ADS_base_url = 'http://articles.adsabs.harvard.edu/cgi-bin/nph-iarticle_query'
@@ -52,9 +51,6 @@ def get_graphics(bibcode):
         results = {
             'query': 'failed',
             'error': 'no database entry found for %s' % bibcode}
-    except (ValueError, TypeError) as err:
-        results = {'query': 'failed', 'error': 'JSON problem (%s)' % err}
-        raise
     except Exception as err:
         if 'row' in str(err):
             results = {
