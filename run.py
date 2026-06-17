@@ -207,6 +207,39 @@ def cmd_getdata(session, config, args):
             shutil.copy(ifile, tfile)
 
 
+def cmd_export(session, config, args):
+    outdir = config.get('GRAPHICS_EXPORT_DIR', '')
+    os.makedirs(outdir, exist_ok=True)
+
+    # --- counts: bibcode -> number of thumbnails ---
+    tmp = os.path.join(outdir, 'graphics.tab.tmp')
+    with open(tmp, 'w') as fh:
+        for rec in (session.query(GraphicsModel)
+                    .order_by(GraphicsModel.bibcode).all()):
+            try:
+                n = len(rec.thumbnails)
+            except Exception:
+                continue
+            fh.write("%s\t%s\n" % (rec.bibcode, n))
+    os.rename(tmp, os.path.join(outdir, 'graphics.tab'))
+    sys.stderr.write('Wrote graphics.tab\n')
+
+    # --- links: per-source thumbnail + label rows ---
+    sources = list(config.get('GRAPHICS_SOURCE_NAMES', {}).keys())
+    for source in sources:
+        tmp = os.path.join(outdir, '%s.graphics.links.tsv.tmp' % source)
+        with open(tmp, 'w') as fh:
+            for rec in (session.query(GraphicsModel)
+                        .filter(GraphicsModel.source == source).all()):
+                for figure in (rec.figures or []):
+                    label = figure.get('figure_label', '')
+                    for entry in figure.get('images', []):
+                        fh.write("%s\t%s\t%s\n" % (
+                            rec.bibcode, entry.get('thumbnail', ''), label))
+        os.rename(tmp, os.path.join(outdir, '%s.graphics.links.tsv' % source))
+        sys.stderr.write('Wrote %s.graphics.links.tsv\n' % source)
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -236,6 +269,9 @@ def main():
                               help='Retrieve MNRAS/MNRASL images from source')
     p.add_argument('journal', choices=['MNRAS', 'MNRASL'])
 
+    subparsers.add_parser('export',
+                          help='Export counts and thumbnail links to TSV files')
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -259,6 +295,7 @@ def main():
         'checkdb': cmd_checkdb,
         'backupdb': cmd_backupdb,
         'getdata': cmd_getdata,
+        'export': cmd_export,
     }
     commands[args.command](session, config, args)
 
